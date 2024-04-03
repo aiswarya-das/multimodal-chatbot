@@ -12,8 +12,9 @@ from htmlTemplates import css, bot_template, user_template
 from langchain.chains.summarize import load_summarize_chain
 import os
 import tempfile
+import re
 from langchain_community.document_loaders import PyPDFLoader
-
+from openai import OpenAI
 def get_pdf_text(pdf_docs):
     text = ""
     for pdf in pdf_docs:
@@ -49,6 +50,40 @@ def get_conversation_chain(vectorstore):
 #     # Process the entered system description here
 #     # You can perform any required processing or analysis
 #     # For now, let's just print the entered description
+#     # Load environment variables from .env file
+# # load_dotenv()
+
+# # Retrieve the API key from the environment
+#     openai_api_key = os.getenv("OPENAI_API_KEY")
+
+# # Initialize OpenAI client
+#     client = OpenAI(api_key=openai_api_key)
+#     if "openai_model" not in st.session_state:
+#         st.session_state["openai_model"] = "gpt-3.5-turbo"
+
+#     if "messages" not in st.session_state:
+#         st.session_state.messages = []
+
+#     for message in st.session_state.messages:
+#         with st.chat_message(message["role"]):
+#             st.markdown(message["content"])
+#     if prompt := st.chat_input("What is up?"):
+#         st.session_state.messages.append({"role": "user", "content": prompt})
+#         with st.chat_message("user"):
+#             st.markdown(prompt)
+#         with st.chat_message("assistant"):
+#             stream = client.chat.completions.create(
+#                 model=st.session_state["openai_model"],
+#                 messages=[
+#                 {"role": m["role"], "content": m["content"]}
+#                 for m in st.session_state.messages
+#             ],
+#              stream=True,
+#             )
+#             response = st.write_stream(stream)
+#         st.session_state.messages.append({"role": "assistant", "content": response})
+
+
 #     st.write(f"System Description: {system_description}")
 
 # def handle_userinput(user_question):
@@ -127,7 +162,36 @@ def main():
     # system_description = st.sidebar.text_area("Enter System Description")
     # if st.sidebar.button("Process System Description"):
     #     handle_system_description(system_description)
+    #     openai_api_key = os.getenv("OPENAI_API_KEY")
+
+# Initialize OpenAI client
+    openai_api_key = os.getenv("OPENAI_API_KEY")
     
+    client = OpenAI(api_key=openai_api_key)
+    if "openai_model" not in st.session_state:
+        st.session_state["openai_model"] = "gpt-3.5-turbo"
+
+    if "messages" not in st.session_state:
+        st.session_state.messages = []
+
+    for message in st.session_state.messages:
+        with st.chat_message(message["role"]):
+            st.markdown(message["content"])
+    if prompt := st.chat_input("What is up?"):
+        st.session_state.messages.append({"role": "user", "content": prompt})
+        with st.chat_message("user"):
+            st.markdown(prompt)
+        with st.chat_message("assistant"):
+            stream = client.chat.completions.create(
+                model=st.session_state["openai_model"],
+                messages=[
+                {"role": m["role"], "content": m["content"]}
+                for m in st.session_state.messages
+            ],
+             stream=True,
+            )
+            response = st.write_stream(stream)
+        st.session_state.messages.append({"role": "assistant", "content": response})
 
 if __name__ == '__main__':
     main()
