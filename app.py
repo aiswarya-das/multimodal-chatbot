@@ -1,5 +1,7 @@
 import streamlit as st
 from dotenv import load_dotenv
+import streamlit.components.v1 as components
+import base64
 from PyPDF2 import PdfReader
 from langchain.text_splitter import CharacterTextSplitter
 from langchain_openai import OpenAIEmbeddings
@@ -13,8 +15,10 @@ from langchain.chains.summarize import load_summarize_chain
 import os
 import tempfile
 import re
+import pyperclip
 from langchain_community.document_loaders import PyPDFLoader
 from openai import OpenAI
+
 def get_pdf_text(pdf_docs):
     text = ""
     for pdf in pdf_docs:
@@ -46,45 +50,6 @@ def get_conversation_chain(vectorstore):
         memory=memory
     )
     return conversation_chain
-# def handle_system_description(system_description):
-#     # Process the entered system description here
-#     # You can perform any required processing or analysis
-#     # For now, let's just print the entered description
-#     # Load environment variables from .env file
-# # load_dotenv()
-
-# # Retrieve the API key from the environment
-#     openai_api_key = os.getenv("OPENAI_API_KEY")
-
-# # Initialize OpenAI client
-#     client = OpenAI(api_key=openai_api_key)
-#     if "openai_model" not in st.session_state:
-#         st.session_state["openai_model"] = "gpt-3.5-turbo"
-
-#     if "messages" not in st.session_state:
-#         st.session_state.messages = []
-
-#     for message in st.session_state.messages:
-#         with st.chat_message(message["role"]):
-#             st.markdown(message["content"])
-#     if prompt := st.chat_input("What is up?"):
-#         st.session_state.messages.append({"role": "user", "content": prompt})
-#         with st.chat_message("user"):
-#             st.markdown(prompt)
-#         with st.chat_message("assistant"):
-#             stream = client.chat.completions.create(
-#                 model=st.session_state["openai_model"],
-#                 messages=[
-#                 {"role": m["role"], "content": m["content"]}
-#                 for m in st.session_state.messages
-#             ],
-#              stream=True,
-#             )
-#             response = st.write_stream(stream)
-#         st.session_state.messages.append({"role": "assistant", "content": response})
-
-
-#     st.write(f"System Description: {system_description}")
 
 # def handle_userinput(user_question):
 def handle_userinput(user_question):
@@ -125,9 +90,63 @@ def Generate_summary(pdfs_folder):
     
     return summaries
 
+def mermaid(code: str) -> None:
+    components.html(
+        f"""
+        <div id="mermaid-container" class="mermaid" style="height: auto;">
+            {code}
+        </div>
+
+        <button id="download-btn">Download SVG</button>
+
+        <script type="module">
+            // Import Mermaid library from CDN
+            import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+            // Initialize Mermaid with specified options
+            mermaid.initialize({{ startOnLoad: true ,securityLevel: 'loose',}});
+            
+            // Event listener for download button click
+            document.getElementById('download-btn').onclick = function() {{
+                // Extract SVG content from container
+                const svgContent = document.getElementById('mermaid-container').innerHTML;
+                // Create Blob from SVG content
+                const svgBlob = new Blob([svgContent], {{ type: 'image/svg+xml' }});
+                // Generate URL for Blob object
+                const svgUrl = URL.createObjectURL(svgBlob);
+                // Create a download link
+                const downloadLink = document.createElement('a');
+                downloadLink.href = svgUrl;  // Set download link href
+                downloadLink.download = 'diagram.svg';  // Set download file name
+                // Append download link to body
+                document.body.appendChild(downloadLink);
+                // Simulate click on download link
+                downloadLink.click();
+                // Remove download link from body
+                document.body.removeChild(downloadLink);
+            }};
+
+            // Dynamically adjust height of the Mermaid container
+            function adjustHeight() {{
+                const container = document.getElementById('mermaid-container');
+                const svg = container.querySelector('svg');
+                if (svg) {{
+                    container.style.height = svg.getBoundingClientRect().height + 'px';
+                }}
+            }}
+
+            // Adjust height when page loads
+            adjustHeight();
+
+            // Adjust height when window is resized
+            window.addEventListener('resize', adjustHeight);
+        </script>
+        """,
+        height=1500  # Default height for the Mermaid diagram
+    )
 
 def main():
     load_dotenv()
+
     st.set_page_config(page_title="chatbot", page_icon=":books:")
     st.write(css, unsafe_allow_html=True)
     
@@ -159,12 +178,9 @@ def main():
                     st.write(f"Summary for PDF {i+1}:")
                     # st.write(summary)
                     st.write(bot_template.replace("{{MSG}}", summary), unsafe_allow_html=True)
-    # system_description = st.sidebar.text_area("Enter System Description")
-    # if st.sidebar.button("Process System Description"):
-    #     handle_system_description(system_description)
-    #     openai_api_key = os.getenv("OPENAI_API_KEY")
 
-# Initialize OpenAI client
+
+# code for asking bot to generate mermaid diagram
     openai_api_key = os.getenv("OPENAI_API_KEY")
     
     client = OpenAI(api_key=openai_api_key)
@@ -177,7 +193,8 @@ def main():
     for message in st.session_state.messages:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
-    if prompt := st.chat_input("What is up?"):
+
+    if prompt := st.chat_input("Input diagram description"):
         st.session_state.messages.append({"role": "user", "content": prompt})
         with st.chat_message("user"):
             st.markdown(prompt)
@@ -192,6 +209,27 @@ def main():
             )
             response = st.write_stream(stream)
         st.session_state.messages.append({"role": "assistant", "content": response})
+        generate_button_visible = True  # Set to True after prompt is generated
 
+    if st.button("Generate Diagram"):
+        mermaid_code = None
+    # Loop through messages in reverse order
+        for message in reversed(st.session_state.messages):
+            if message["role"] == "assistant":
+                content = message["content"]
+            # Use regular expression to find Mermaid code
+                mermaid_match = re.search(r'```mermaid\s*(.*?)\s*```', content, re.DOTALL)
+                if mermaid_match:
+                    mermaid_code = mermaid_match.group(1).strip()
+                st.sidebar.text(mermaid_code)
+                break  # Stop after finding the latest occurrence of Mermaid code
+
+        if mermaid_code:
+            # Render the Mermaid diagram using the extracted code
+            mermaid(mermaid_code)
+        else:
+            st.sidebar.text("Mermaid code not found in the latest response")
+         # Render the Mermaid diagram using the extracted code
+        
 if __name__ == '__main__':
     main()
